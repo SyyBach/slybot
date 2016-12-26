@@ -1,0 +1,14 @@
+\ifdefined\mytext
+\else
+    \def\mytext{failure}
+\fi
+\documentclass[border=2pt]{standalone}
+\usepackage{color}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{varwidth}
+\begin{document}
+\begin{varwidth}{\linewidth}
+    \mytext
+\end{varwidth}
+\end{document}

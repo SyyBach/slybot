@@ -1,0 +1,19 @@
+\ifdefined\formula
+\else
+\def\formula{\draw (0,0) node {failed};}
+\fi
+\documentclass[border=2pt]{standalone}
+\usepackage{color}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{varwidth}
+\usepackage{tikz}
+%\input{personal_tikz.tex}
+\begin{document}
+\begin{varwidth}{\linewidth}
+\begin{tikzpicture}
+    \formula
+\end{tikzpicture}
+\end{varwidth}
+\end{document}

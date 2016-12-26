@@ -1,0 +1,234 @@
+\usepackage{pgf,tikz}
+\usepackage{ifthen}
+\usetikzlibrary{arrows}
+\usetikzlibrary{through}
+\usetikzlibrary{intersections}
+\usetikzlibrary{calc}
+\usetikzlibrary{patterns}
+
+
+\def\epsRad{0.85} % default value, always used as a radii info so far ! -> can be redef as length
+\newlength{\tmplength}
+\newlength{\figWidth}
+
+
+\makeatletter
+\newcommand*{\DivideLength}[3]{% length number1 number2 -> length*number2/number1
+  \dimexpr\number\numexpr\number\dimexpr#1\relax*\number#3/\number#2\relax sp\relax
+}
+\makeatother
+
+
+
+%
+%% Macros
+
+%% Very local macros
+% Midle arrow segment
+\newcommand*{\myArrow}[3]%
+{ % Usage: \myArrow{start}{end}{arrowPos}
+  \path (#1)--(#2) node (arrow#1#2pos) [pos=#3,inner sep=0pt,outer sep=0pt] {};
+  \draw [->,shorten >=-1.5pt] (#1)--(arrow#1#2pos);
+  \draw (arrow#1#2pos)--(#2);
+}
+
+
+%
+% Circle draw
+\newcommand*{\circleDraw}[2]%
+{ % Usage: \circleDraw{center}{point}   --> use trueCirclePath instead
+  \node [circle through={(#2)},color=myGray,draw,loosely dashed] at (#1) {} ;
+}
+
+
+% New circle path
+\newcommand*{\circlePath}[2]%
+{ % Usage: \circlePath{center}{point}
+  \node [circle through={(#2)},name path=b#1#2] at (#1) {} ;
+}
+% Intersection of circle path should be reworked with default argument
+\newcommand*{\circleIntersect}[3]%
+{
+  \path [name intersections={of=#1 and #2,sort by=#1}];
+  \coordinate (#3) at (intersection-1);
+}
+\newcommand*{\circleIntersectBis}[3]%
+{
+  \path [name intersections={of=#1 and #2}];
+  \coordinate (#3) at (intersection-2);
+}
+%
+
+\makeatletter      
+%
+\newif\if@mydebug % used to control the drawing of control points for some commands below
+%\@mydebugtrue
+%
+% Projects bd vtx onto inner projections
+\newcommand*{\myIntersection}[2]%
+{ % Usage: \myIntersection{vtx}{inner}
+  \path [name path=seg#1#2] (#1)--(#2);
+  \path [name path=circ#1] (#1) circle (\epsRad);
+  \path [name intersections={of=seg#1#2 and circ#1,total=\t}]
+    \pgfextra{\global\let\@mytotal\t};
+  \ifnum\@mytotal>0
+    \coordinate (#1#2) at (intersection-1);
+    \if@mydebug
+      \fill (#1#2) circle [radius=1.5pt,color=black] ;
+      \node at (#1#2) [above] {#1#2};
+    \fi
+  \fi
+}
+%
+% Computes intersection between two sop's
+\newcommand*{\sopIntersection}[2]%
+{ % Usage: \sopIntersection{vtx1}{vtx2}
+  \path [name path=sop#1] (#1) circle (\epsRad);
+  \path [name path=sop#2] (#2) circle (\epsRad);
+  \path [name intersections={of=sop#1 and sop#2,total=\t}]
+    \pgfextra{\global\let\@mytotal\t};
+  \ifnum\@mytotal>0
+    % Recompute with appropriate sorting. Cannot sort when empty (crash)
+    \path [name intersections={of=sop#1 and sop#2,sort by=sop#1}];
+    \foreach \s in {1,...,\@mytotal}
+    {
+      \coordinate (#1#2-\s) at (intersection-\s);
+      \if@mydebug
+        \fill (#1#2-\s) circle [radius=1.5pt,color=black] ;
+        \node at (#1#2-\s) [above] {#1#2-\s};
+      \fi
+    }
+  \fi
+}
+\makeatother
+%%/Very local macros
+
+
+
+
+
+
+%% More general purpose macros
+
+%
+% Compute angle formed by a vector with the X-axis
+\newcommand{\getAngle}[3]%
+  % Usage:
+  % \getAngle{vecOrigin}{vecDest}{angleRegister}
+{
+  \pgfmathanglebetweenpoints{\pgfpointanchor{#1}{center}}
+                            {\pgfpointanchor{#2}{center}}
+  \global\let#3\pgfmathresult % we need a global macro 
+}
+
+
+
+%
+% Computes length of a vector
+\makeatletter
+\newcommand{\getLength}[3]
+{ % Usage:
+  % \getLength{vecOrigin}{vecDest}{lengthRegister}
+  \pgfpointdiff{\pgfpointanchor{#1}{center}}
+               {\pgfpointanchor{#2}{center}}
+  \pgf@xa=\pgf@x % no need to use a new dimen
+  \pgf@ya=\pgf@y
+  \pgfmathparse{veclen(\pgf@xa,\pgf@ya)/\strip@pt\tmplength} % to convert from pt to cm   
+  %\pgfmathparse{veclen(\pgf@xa,\pgf@ya)/28.45274} % to convert from pt to cm   
+  \global\let#3\pgfmathresult % we need a global macro
+  % note to self: the result register will only contain a number, which can be used (most
+  % likely directly?) as a relative length\ldots As of now the scale is set to cm so not
+  % entirely sure of that
+}
+
+
+%
+% Internal command to encapsulate the necessary computations for arc-drawing macros
+\newcommand{\@arcCompute}[3]
+{ % Usage:
+  % \@arcCompute{center}{rightPoint}{leftPoint}
+  % It is assumed that both point are at the same distance from the center
+  \getLength{#1}{#2}{\@myArcRadius}%
+  \getAngle{#1}{#2}{\@myRightAngle}%
+  \getAngle{#1}{#3}{\@myLeftAngle}%
+  \ifthenelse{\lengthtest{\@myRightAngle pt < \@myLeftAngle pt}}
+  { % true, do nothing
+  }
+  { % false, increase leftAngle by 360
+    \pgfmathparse{\@myLeftAngle+360}
+    \global\let\@myLeftAngle\pgfmathresult
+  }
+}
+
+
+%
+% Macros for drawing arcs
+% Usage: \macro{center}{start}{end}
+\def\arcMacro#1#2#3{%
+  \pgfextra{\@arcCompute{#1}{#2}{#3}}%
+  arc(\@myRightAngle:\@myLeftAngle:\@myArcRadius)
+  -- (#3) % required to arrive precisely at point #3, otherwise numerical imprecision stacks up
+}
+%
+\def\reverseArcMacro#1#2#3{%
+  \pgfextra{\@arcCompute{#1}{#3}{#2}}%
+  arc(\@myLeftAngle:\@myRightAngle:\@myArcRadius)
+  -- (#3) % required to arrive precisely at point #3, otherwise numerical imprecision stacks up
+}
+%
+\makeatother
+
+
+%
+% Macro for a ``true'' circle path, to use in path/clipping/draw/fill (center->bd point)
+% mostly untested in complex environment, probably needs to be the first path command
+% redundant with the circle through lib, but at least this is not a node but a path command
+\def\trueCirclePath#1#2{%
+  let \p1 = ($(#1)-(#2)$), \n1 = {veclen(\p1)} in
+  (#1) circle (\n1)
+}
+%%/More general purpose macros
+
+
+%
+% Utility to get coordinate to work with in pgf
+\newdimen\XCoord
+\newdimen\YCoord
+\newcommand*{\ExtractCoordinate}[1]{\path (#1); \pgfgetlastxy{\XCoord}{\YCoord};}
+
+%%/Macros
+
+
+%% Custom diagonal line patterns
+\makeatletter
+\pgfdeclarepatternformonly[\LineSpace]{my north east lines}{\pgfqpoint{-1pt}{-1pt}}{\pgfqpoint{\LineSpace}{\LineSpace}}{\pgfqpoint{\LineSpace}{\LineSpace}}%
+{
+  \pgfsetcolor{\tikz@pattern@color}
+  \pgfsetlinewidth{0.4pt}
+  \pgfpathmoveto{\pgfqpoint{0pt}{0pt}}
+  \pgfpathlineto{\pgfqpoint{\LineSpace + 0.1pt}{\LineSpace + 0.1pt}}
+  \pgfusepath{stroke}
+}
+
+\pgfdeclarepatternformonly[\LineSpace]{my north west lines}{\pgfqpoint{-1pt}{-1pt}}{\pgfqpoint{\LineSpace}{\LineSpace}}{\pgfqpoint{\LineSpace}{\LineSpace}}%
+{
+  \pgfsetcolor{\tikz@pattern@color}
+  \pgfsetlinewidth{0.4pt}
+  \pgfpathmoveto{\pgfqpoint{0pt}{\LineSpace}}
+  \pgfpathlineto{\pgfqpoint{\LineSpace + 0.1pt}{-0.1pt}}
+  \pgfusepath{stroke}
+}
+
+\newdimen\LineSpace
+\tikzset{
+  line space/.code={\LineSpace=#1},
+  line space=3pt
+}
+\makeatother
+%%/Custom diagonal line patterns
+
+
+%% Forces grid step to be the unit length by default
+\tikzset{step=1}
+
+
